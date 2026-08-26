@@ -259,7 +259,7 @@ export class ProcessWagerTransactionUseCase {
 
   /**
    * Reprocessamento de uma transação PENDING_REFERENCE (chamado pelo
-   * PendingReferenceReprocessorWorker — Fase 6). Mesma ordem de lock da Fase 4 (wallet antes da
+   * PendingReferenceReprocessorWorker). Mesma ordem de lock do fluxo síncrono (wallet antes da
    * linha da própria transação) para evitar o mesmo tipo de deadlock por escalada de lock.
    */
   async retryPendingReference(transactionId: string, ctx: EventContext): Promise<void> {
