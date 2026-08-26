@@ -1,12 +1,14 @@
 import { Controller, Get, Header } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 import { MetricsService } from './metrics.service';
-import { Public } from '../../auth/public.decorator';
 
 /**
- * Exposição no formato texto do Prometheus. Público por convenção operacional (scraping não passa
- * por fluxo de usuário/provider) — em produção, restrito por rede/allowlist, não por este guard.
+ * Exposição no formato texto do Prometheus. Protegido pelo mesmo KeycloakJwtGuard global dos demais
+ * endpoints — um scraper precisa de um token válido (client_credentials), igual qualquer outro
+ * client autenticado. Excluído do Swagger: não é um endpoint JSON, formato Prometheus não se presta
+ * a doc OpenAPI.
  */
-@Public()
+@ApiExcludeController()
 @Controller('metrics')
 export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}
