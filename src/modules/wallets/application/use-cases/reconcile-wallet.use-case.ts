@@ -40,8 +40,7 @@ export class ReconcileWalletUseCase {
     const consistent = difference.isZero();
 
     if (!consistent) {
-      // Divergências não são corrigidas silenciosamente (seção 9 do desafio) — logadas aqui;
-      // a métrica dedicada (`reconciliation_divergence_total` ou similar) chega na Fase 8.
+      // Divergências não são corrigidas silenciosamente — apenas logadas e sinalizadas na resposta.
       this.logger.error(
         `Balance divergence for wallet ${walletId}: stored=${wallet.balance.toString()} calculated=${calculated.toString()}`,
       );

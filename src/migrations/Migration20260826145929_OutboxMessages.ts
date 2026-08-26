@@ -1,10 +1,9 @@
 import { Migration } from '@mikro-orm/migrations';
 
 /**
- * Tabela da outbox transacional. Puxada pra cá (Fase 3) em vez da Fase 5 original do plano,
- * porque ProcessWagerTransaction precisa gravar o evento de integração na MESMA transação SQL da
- * mutação financeira (seção 11 do desafio) — não dá pra implementar o use case sem essa tabela
- * existir. O publisher que lê essa tabela e publica no SQS continua sendo Fase 5.
+ * Tabela da outbox transacional. ProcessWagerTransaction precisa gravar o evento de integração na
+ * MESMA transação SQL da mutação financeira — o publisher que lê essa tabela e publica no SQS roda
+ * de forma assíncrona e independente.
  */
 export class Migration20260826145929_OutboxMessages extends Migration {
   override async up(): Promise<void> {
@@ -22,7 +21,7 @@ export class Migration20260826145929_OutboxMessages extends Migration {
       );
     `);
 
-    // Usado pelo publisher (Fase 5) com SELECT ... FOR UPDATE SKIP LOCKED sobre mensagens pendentes.
+    // Usado pelo publisher com SELECT ... FOR UPDATE SKIP LOCKED sobre mensagens pendentes.
     this.addSql(`
       create index "outbox_messages_pending_index"
         on "outbox_messages" ("next_attempt_at")

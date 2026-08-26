@@ -5,8 +5,8 @@ import type { Provider } from '@nestjs/common';
 export const SQS_CLIENT = Symbol('SQS_CLIENT');
 
 /**
- * Cliente SQS bruto — usado por enquanto só pelo health check. O publisher/consumer completos
- * (com retry, DLQ, ack-after-commit) chegam na Fase 5; aqui é só a conectividade.
+ * Cliente SQS bruto compartilhado — usado pelo health check e injetado nos providers de
+ * publisher/consumer (retry, DLQ, ack-after-commit) definidos em outros arquivos deste módulo.
  */
 export const sqsClientProvider: Provider = {
   provide: SQS_CLIENT,

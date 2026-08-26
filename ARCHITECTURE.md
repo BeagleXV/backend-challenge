@@ -1,8 +1,8 @@
 # ARCHITECTURE.md
 
 Decisões técnicas, trade-offs e limitações do Distributed Wagering Processor. Organizado em torno
-dos critérios de avaliação do desafio (seção 14 do `README.md`): correção financeira, concorrência,
-idempotência, mensageria e falhas, modelagem e arquitetura, testes, observabilidade.
+das áreas centrais do sistema: correção financeira, concorrência, idempotência, mensageria e falhas,
+modelagem e arquitetura, testes, observabilidade.
 
 **Índice**: [1. Visão geral](#1-visão-geral-e-estilo-arquitetural) ·
 [2. Stack](#2-stack-e-escolhas-de-ferramentas) ·
@@ -44,7 +44,7 @@ instâncias" e "múltiplos publishers concorrentes na outbox" acontecerem natura
 | Runtime/test runner | Bun 1.4.0 | Exigido pelo desafio. |
 | ORM | MikroORM | Preferencial no desafio: `EntityManager.transactional()` encapsula bem "tudo na mesma transação SQL", e `LockMode` dá pessimistic locking nativo e explícito — encaixa direto na estratégia de concorrência da seção 4. |
 | Concorrência de wallet | Pessimistic locking (`SELECT ... FOR UPDATE`) | Ver seção 4. |
-| Auth | Keycloak (OIDC) | Não vale pontos (seção 2 do desafio), implementado mesmo assim — ver seção 8. |
+| Auth | Keycloak (OIDC) | Autenticação real via OIDC, protegendo os endpoints HTTP — ver seção 8. |
 | TypeScript | `strict: true` de verdade | O `tsconfig.json` gerado pelo `@nestjs/cli` vem com vários relaxamentos (`noImplicitAny: false`, etc.); removidos explicitamente, e adicionado `noUncheckedIndexedAccess` + `noImplicitOverride`. |
 
 `bun install` resolve `ajv@6` para o topo do grafo de dependências (via alguma dependência
@@ -360,8 +360,7 @@ transitória:
 ## 8. Autenticação
 
 Keycloak (OIDC) real, protegendo os endpoints HTTP com um guard JWT validando contra o realm via
-JWKS. Não vale pontos na avaliação (seção 2 do desafio) — implementado mesmo assim para deixar o
-cenário mais próximo de um caso real.
+JWKS — implementado para deixar o cenário mais próximo de um caso real.
 
 **Setup**: serviço `keycloak` no `docker-compose.yml` sobe com `start-dev --import-realm`,
 importando `docker/keycloak/realm-export.json` — realm `jungle-gaming`, client `wagering-api`
@@ -372,7 +371,9 @@ um protocol mapper de audience garantindo que os tokens emitidos carreguem `"wag
 **Validação**: `KeycloakJwtStrategy` (`passport-jwt` + `jwks-rsa`) busca as chaves públicas de
 `${issuer}/protocol/openid-connect/certs` dinamicamente (com cache), valida assinatura RS256,
 `issuer` e `audience`. `KeycloakJwtGuard` aplicado **globalmente** via `APP_GUARD` — todo endpoint
-exige token válido por padrão, exceto os marcados com `@Public()` (`/health/*`, `/metrics`).
+exige token válido por padrão, exceto os marcados com `@Public()` (`/health/*`). `/metrics` exige
+token como qualquer outro endpoint — não há motivo de negócio para expô-lo sem autenticação, e um
+scraper pode obter um token via `client_credentials` como qualquer client machine-to-machine.
 
 **Escopo deliberadamente limitado a autenticação**, sem autorização/RBAC: o guard só responde "esta
 chamada tem um token válido de um client registrado no realm?" — não faz checagem cruzada entre a
@@ -380,8 +381,8 @@ identidade do token e o `providerId` do corpo da requisição. O desafio não pe
 camada de autorização não solicitada seria escopo além do necessário.
 
 Testado com Keycloak real (realm importado, token obtido via `client_credentials` contra o endpoint
-real): sem header `Authorization` → 401; token malformado → 401; token válido → passa. `/health/*` e
-`/metrics` confirmados abertos sem token.
+real): sem header `Authorization` → 401; token malformado → 401; token válido → passa. `/health/*`
+confirmado aberto sem token; `/metrics` confirmado exigindo token como qualquer outro endpoint.
 
 ## 9. Observabilidade
 
@@ -464,11 +465,9 @@ ledger`.
 
 ## 11. Limitações conhecidas / fora de escopo
 
-- **Teste de carga** (diferencial opcional, não pontua): não implementado — priorizamos os
-  requisitos obrigatórios dentro do tempo disponível.
-- **Ledger de partidas dobradas** (double-entry bookkeeping): fora de escopo — diferencial, não
-  requisito.
-- **Reversão parcial de `REFUND`/`ROLLBACK`**: fora de escopo (seção 7, regra 5 do desafio).
+- **Teste de carga**: não implementado.
+- **Ledger de partidas dobradas** (double-entry bookkeeping): fora de escopo.
+- **Reversão parcial de `REFUND`/`ROLLBACK`**: fora de escopo.
 - **Sem `Dockerfile` da aplicação**: a API roda fora do `docker-compose` (via `bun run start`), que
-  sobe só a infraestrutura (Postgres, LocalStack, Keycloak). Ver `SETUP.md`.
+  sobe só a infraestrutura (Postgres, LocalStack, Keycloak). Ver `README.md`.
 - **Autorização/RBAC**: fora de escopo deliberadamente — ver seção 8.

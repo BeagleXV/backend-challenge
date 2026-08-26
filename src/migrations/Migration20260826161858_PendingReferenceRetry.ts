@@ -1,6 +1,6 @@
 import { Migration } from '@mikro-orm/migrations';
 
-/** Campos de bookkeeping do reprocessamento de PENDING_REFERENCE (Fase 6 — worker com backoff). */
+/** Campos de bookkeeping do reprocessamento de PENDING_REFERENCE (worker com backoff exponencial). */
 export class Migration20260826161858_PendingReferenceRetry extends Migration {
   override async up(): Promise<void> {
     this.addSql(`
