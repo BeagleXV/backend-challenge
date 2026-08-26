@@ -1,0 +1,348 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-08-26T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v8",
+  "resources": [
+    {
+      "_id": "wrk_wagering",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "Distributed Wagering Processor",
+      "description": "Coleção manual para testar a API do desafio (seção 9 do README).",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_wagering",
+      "name": "Base Environment",
+      "data": {
+        "baseUrl": "http://localhost:3000",
+        "keycloakUrl": "http://localhost:8080",
+        "realm": "jungle-gaming",
+        "clientId": "wagering-api",
+        "clientSecret": "wagering-api-secret",
+        "token": "",
+        "playerId": "0192f28f-5dc0-7d58-bdb2-814ad6a0f4a1",
+        "walletId": "",
+        "providerId": "provider-a",
+        "transactionId": ""
+      },
+      "dataPropertyOrder": {
+        "&": ["baseUrl", "keycloakUrl", "realm", "clientId", "clientSecret", "token", "playerId", "walletId", "providerId", "transactionId"]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 0
+    },
+
+    { "_id": "fld_auth", "_type": "request_group", "parentId": "wrk_wagering", "name": "Auth", "metaSortKey": 0 },
+    {
+      "_id": "req_get_token",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Get Token (client_credentials)",
+      "method": "POST",
+      "url": "{{ _.keycloakUrl }}/realms/{{ _.realm }}/protocol/openid-connect/token",
+      "description": "Roda primeiro. Copie o \"access_token\" da resposta para a variável de ambiente token — as demais pastas (Wallets, Wagering Transactions) já usam Bearer {{ _.token }} automaticamente.",
+      "body": {
+        "mimeType": "application/x-www-form-urlencoded",
+        "params": [
+          { "name": "grant_type", "value": "client_credentials" },
+          { "name": "client_id", "value": "{{ _.clientId }}" },
+          { "name": "client_secret", "value": "{{ _.clientSecret }}" }
+        ]
+      },
+      "headers": [{ "name": "Content-Type", "value": "application/x-www-form-urlencoded" }],
+      "metaSortKey": 1
+    },
+
+    { "_id": "fld_health", "_type": "request_group", "parentId": "wrk_wagering", "name": "Health", "metaSortKey": 1 },
+    {
+      "_id": "req_health_live",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Live",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/health/live",
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_health_ready",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Ready (Postgres + SQS)",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/health/ready",
+      "metaSortKey": 2
+    },
+
+    {
+      "_id": "fld_wallets",
+      "_type": "request_group",
+      "parentId": "wrk_wagering",
+      "name": "Wallets",
+      "authentication": { "type": "bearer", "token": "{{ _.token }}" },
+      "metaSortKey": 2
+    },
+    {
+      "_id": "req_create_wallet",
+      "_type": "request",
+      "parentId": "fld_wallets",
+      "name": "Create Wallet",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wallets",
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"playerId\": \"{{ _.playerId }}\",\n  \"initialBalance\": { \"amount\": \"1000.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "description": "Copie o \"id\" da resposta para a variável de ambiente walletId antes de rodar as próximas requests.",
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_get_wallet",
+      "_type": "request",
+      "parentId": "fld_wallets",
+      "name": "Get Wallet",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/wallets/{{ _.walletId }}",
+      "metaSortKey": 2
+    },
+    {
+      "_id": "req_get_ledger",
+      "_type": "request",
+      "parentId": "fld_wallets",
+      "name": "Get Wallet Ledger",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/wallets/{{ _.walletId }}/ledger",
+      "parameters": [
+        { "name": "limit", "value": "50", "disabled": false },
+        { "name": "cursor", "value": "", "disabled": true }
+      ],
+      "metaSortKey": 3
+    },
+    {
+      "_id": "req_get_ledger_bad_cursor",
+      "_type": "request",
+      "parentId": "fld_wallets",
+      "name": "Get Wallet Ledger (cursor malformado -> 400)",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/wallets/{{ _.walletId }}/ledger",
+      "description": "cursor inválido (não é o base64 opaco esperado) — espera 400 RequestValidationError, não 503.",
+      "parameters": [{ "name": "cursor", "value": "isso-nao-e-um-cursor-valido", "disabled": false }],
+      "metaSortKey": 3.5
+    },
+    {
+      "_id": "req_reconciliation",
+      "_type": "request",
+      "parentId": "fld_wallets",
+      "name": "Reconciliation",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wallets/{{ _.walletId }}/reconciliation",
+      "metaSortKey": 4
+    },
+
+    {
+      "_id": "fld_wagering",
+      "_type": "request_group",
+      "parentId": "wrk_wagering",
+      "name": "Wagering Transactions",
+      "authentication": { "type": "bearer", "token": "{{ _.token }}" },
+      "metaSortKey": 3
+    },
+    {
+      "_id": "req_bet",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit BET",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:tx-1" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"tx-1\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"BET\",\n  \"money\": { \"amount\": \"25.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_bet_replay",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit BET (replay idempotente)",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "description": "Mesma Idempotency-Key e mesmo payload da 'Submit BET' — espera 200 com idempotentReplay:true, sem debitar de novo.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:tx-1" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"tx-1\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"BET\",\n  \"money\": { \"amount\": \"25.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "metaSortKey": 2
+    },
+    {
+      "_id": "req_bet_conflict",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit BET (conflito de idempotência)",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "description": "Mesma Idempotency-Key da 'Submit BET', payload diferente (99.00) — espera 409.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:tx-1" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"tx-1\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"BET\",\n  \"money\": { \"amount\": \"99.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "metaSortKey": 3
+    },
+    {
+      "_id": "req_bet_no_key",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit BET (sem Idempotency-Key)",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "description": "Sem o header Idempotency-Key — espera 400.",
+      "headers": [{ "name": "Content-Type", "value": "application/json" }],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"tx-no-key\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"BET\",\n  \"money\": { \"amount\": \"25.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "metaSortKey": 4
+    },
+    {
+      "_id": "req_win",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit WIN",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:win-1" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"win-1\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"WIN\",\n  \"money\": { \"amount\": \"50.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "metaSortKey": 5
+    },
+    {
+      "_id": "req_loss",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit LOSS",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:loss-1" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"loss-1\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"LOSS\",\n  \"money\": { \"amount\": \"10.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "metaSortKey": 6
+    },
+    {
+      "_id": "req_refund",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit REFUND (da BET tx-1)",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:refund-1" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"refund-1\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"REFUND\",\n  \"money\": { \"amount\": \"25.00\", \"currency\": \"BRL\" },\n  \"referenceExternalTransactionId\": \"tx-1\"\n}"
+      },
+      "metaSortKey": 7
+    },
+    {
+      "_id": "req_refund_twice",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit REFUND (2a vez da mesma BET)",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "description": "Referencia a mesma tx-1 de novo, com Idempotency-Key diferente — espera REJECTED/REFERENCE_ALREADY_REVERSED.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:refund-2" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"refund-2\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"REFUND\",\n  \"money\": { \"amount\": \"25.00\", \"currency\": \"BRL\" },\n  \"referenceExternalTransactionId\": \"tx-1\"\n}"
+      },
+      "metaSortKey": 8
+    },
+    {
+      "_id": "req_rollback_pending",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit ROLLBACK (referência inexistente -> PENDING_REFERENCE)",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "description": "referenceExternalTransactionId aponta pra algo que ainda não existe — espera 202/PENDING_REFERENCE.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:rollback-1" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"rollback-1\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"ROLLBACK\",\n  \"money\": { \"amount\": \"999.00\", \"currency\": \"BRL\" },\n  \"referenceExternalTransactionId\": \"nao-existe-ainda\"\n}"
+      },
+      "metaSortKey": 9
+    },
+    {
+      "_id": "req_bet_insufficient",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Submit BET (saldo insuficiente -> REJECTED)",
+      "method": "POST",
+      "url": "{{ _.baseUrl }}/wagering/transactions",
+      "description": "Valor absurdamente alto pra forçar INSUFFICIENT_BALANCE.",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" },
+        { "name": "Idempotency-Key", "value": "{{ _.providerId }}:tx-insufficient" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"providerId\": \"{{ _.providerId }}\",\n  \"externalTransactionId\": \"tx-insufficient\",\n  \"playerId\": \"{{ _.playerId }}\",\n  \"walletId\": \"{{ _.walletId }}\",\n  \"roundId\": \"round-1\",\n  \"gameId\": \"fortune-chimp\",\n  \"kind\": \"BET\",\n  \"money\": { \"amount\": \"999999.00\", \"currency\": \"BRL\" }\n}"
+      },
+      "metaSortKey": 10
+    },
+    {
+      "_id": "req_get_tx_by_id",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Get Transaction by ID",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/wagering/transactions/{{ _.transactionId }}",
+      "description": "Copie o transactionId da resposta de alguma das requests acima para a variável de ambiente.",
+      "metaSortKey": 11
+    },
+    {
+      "_id": "req_get_tx_by_external",
+      "_type": "request",
+      "parentId": "fld_wagering",
+      "name": "Get Transaction by Provider + ExternalId",
+      "method": "GET",
+      "url": "{{ _.baseUrl }}/providers/{{ _.providerId }}/wagering/transactions/tx-1",
+      "metaSortKey": 12
+    }
+  ]
+}
