@@ -2,7 +2,7 @@
   "realm": "jungle-gaming",
   "enabled": true,
   "sslRequired": "none",
-  "accessTokenLifespan": 300,
+  "accessTokenLifespan": 1800,
   "clients": [
     {
       "clientId": "wagering-api",
